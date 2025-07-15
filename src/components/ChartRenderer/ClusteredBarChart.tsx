@@ -111,7 +111,7 @@ export default function ClusteredBarChart({
 			formatter: (params: any) => {
 				let content = `<strong>${params[0].axisValue}</strong><br/>`
 				params.forEach((param: any) => {
-					content += `${param.seriesName}: ${valueSymbol}${formattedNum(param.value, true)}<br/>`
+					content += `${param.seriesName}: ${valueSymbol}${formattedNum(param.value, false)}<br/>`
 				})
 				return content
 			}

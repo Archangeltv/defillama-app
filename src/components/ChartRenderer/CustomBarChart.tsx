@@ -116,9 +116,10 @@ export default function CustomBarChart({
 					}))
 				} else {
 					const dataKey =
-						seriesConfig[0]?.dataKey || Object.keys(chartData.single[0]).find((k) => k !== 'date') || 'value'
+						seriesConfig[0]?.dataKey || Object.keys(chartData.single[0]).find((k) => k !== 'date' && k !== 'entity') || 'value'
 					return [
 						{
+							name: seriesConfig[0]?.name || dataKey.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
 							data: chartData.single!.map((item: any) => [item.date || 'Unknown', item[dataKey] || 0]),
 							type: 'bar',
 							itemStyle: {
@@ -167,6 +168,7 @@ export default function CustomBarChart({
 				const dataKey = seriesConfig[0]?.dataKey || 'value'
 				return [
 					{
+						name: seriesConfig[0]?.name || dataKey.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
 						data: chartData.map((item: any) => [
 							item.name || item.entity || 'Unknown',
 							item[dataKey] || item.value || 0
@@ -264,20 +266,20 @@ export default function CustomBarChart({
 				if (effectiveMultiSeries) {
 					let content = `<strong>${params[0].axisValue}</strong><br/>`
 					params.forEach((param: any) => {
-						content += `${param.seriesName}: ${valueSymbol}${formattedNum(param.value, true)}<br/>`
+						content += `${param.seriesName}: ${valueSymbol}${formattedNum(param.value, false)}<br/>`
 					})
 					return content
 				} else {
 					const value = params[0].value
-					return `<strong>${value[0]}</strong>: ${valueSymbol}${formattedNum(value[1], true)}`
+					return `<strong>${value[0]}</strong>: ${valueSymbol}${formattedNum(value[1], false)}`
 				}
 			}
 		}
 
-		const legend = effectiveMultiSeries
+		const legend = effectiveMultiSeries && series.length > 0
 			? {
 					show: true,
-					data: series.map((s: any) => s.name),
+					data: series.map((s: any) => s.name).filter(Boolean),
 					top: 'bottom',
 					textStyle: {
 						color: isThemeDark ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.85)'
