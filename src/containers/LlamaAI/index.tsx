@@ -10,7 +10,6 @@ import { getList, getValue } from './list'
 import { ISearchData } from './types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import ChartRenderer from '~/components/ChartRenderer'
 
 class StreamingContent {
 	private content: string = ''
@@ -461,9 +460,6 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 											)}
 										</div>
 
-										{item.response.chartData?.charts && item.response.chartData.charts.length > 0 && (
-											<ChartRenderer charts={item.response.chartData.charts} />
-										)}
 
 										{item.response.chartData && (
 											<details className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
