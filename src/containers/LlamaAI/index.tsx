@@ -10,6 +10,7 @@ import { getList, getValue } from './list'
 import { ISearchData } from './types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ChartRenderer } from './components/ChartRenderer'
 
 class StreamingContent {
 	private content: string = ''
@@ -40,11 +41,13 @@ async function fetchPromptResponse({
 	userQuestion: string
 	matchedEntities?: Record<string, string[]>
 	onProgress?: (data: {
-		type: 'token' | 'progress' | 'session' | 'suggestions'
+		type: 'token' | 'progress' | 'session' | 'suggestions' | 'charts'
 		content: string
 		stage?: string
 		sessionId?: string
 		suggestions?: any[]
+		charts?: any[]
+		chartData?: any[]
 	}) => void
 	abortSignal?: AbortSignal
 	sessionId?: string | null
@@ -83,9 +86,10 @@ async function fetchPromptResponse({
 		reader = response.body.getReader()
 		const decoder = new TextDecoder()
 		let fullResponse = ''
-		let chartData = null
 		let metadata = null
 		let suggestions = null
+		let charts = null
+		let chartData = null
 
 		while (true) {
 			if (abortSignal?.aborted) {
@@ -116,12 +120,21 @@ async function fetchPromptResponse({
 							if (onProgress && !abortSignal?.aborted) {
 								onProgress({ type: 'session', content: '', sessionId: data.sessionId })
 							}
-						} else if (data.type === 'chart_data') {
-							chartData = data.chartData
 						} else if (data.type === 'metadata') {
 							metadata = data.metadata
 						} else if (data.type === 'suggestions') {
 							suggestions = data.suggestions
+						} else if (data.type === 'charts') {
+							charts = data.charts
+							chartData = data.chartData
+							if (onProgress && !abortSignal?.aborted) {
+								onProgress({
+									type: 'charts',
+									content: `Generated ${data.charts?.length || 0} chart(s)`,
+									charts: data.charts,
+									chartData: data.chartData
+								})
+							}
 						} else if (data.type === 'error') {
 							throw new Error(data.content)
 						}
@@ -134,9 +147,10 @@ async function fetchPromptResponse({
 			prompt: prompt ?? userQuestion,
 			response: {
 				answer: fullResponse,
-				chartData,
 				metadata,
-				suggestions
+				suggestions,
+				charts,
+				chartData
 			}
 		}
 	} catch (error) {
@@ -163,6 +177,11 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 	const [progressMessage, setProgressMessage] = useState('')
 	const [progressStage, setProgressStage] = useState('')
 	const [streamingSuggestions, setStreamingSuggestions] = useState<any[] | null>(null)
+	const [streamingCharts, setStreamingCharts] = useState<any[] | null>(null)
+	const [streamingChartData, setStreamingChartData] = useState<any[] | null>(null)
+	const [isGeneratingCharts, setIsGeneratingCharts] = useState(false)
+	const [isAnalyzingForCharts, setIsAnalyzingForCharts] = useState(false)
+	const [expectedChartInfo, setExpectedChartInfo] = useState<{ count?: number; types?: string[] } | null>(null)
 	const [sessionId, setSessionId] = useState<string | null>(() => {
 		const stored = typeof window !== 'undefined' ? localStorage.getItem(sessionStorageKey) : null
 		return stored
@@ -170,12 +189,49 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 	const [conversationHistory, setConversationHistory] = useState<
 		Array<{
 			question: string
-			response: { answer: string; chartData?: any; metadata?: any; suggestions?: any[] }
+			response: { answer: string; metadata?: any; suggestions?: any[]; charts?: any[]; chartData?: any[] }
 			timestamp: number
 		}>
 	>([])
 	const abortControllerRef = useRef<AbortController | null>(null)
 	const streamingContentRef = useRef<StreamingContent>(new StreamingContent())
+
+	const parseChartInfo = (message: string): { count?: number; types?: string[] } => {
+		const info: { count?: number; types?: string[] } = {}
+
+		const patterns = [
+			/(?:generating|creating|building|analyzing)\s+([^.]+?)\s+charts?/i,
+			/(?:will create|planning)\s+([^.]+?)\s+(?:chart|visualization)/i,
+			/(?:identified|detected)\s+([^.]+?)\s+chart\s+(?:opportunity|type)/i
+		]
+
+		for (const pattern of patterns) {
+			const typesMatch = message.match(pattern)
+			if (typesMatch) {
+				const typesStr = typesMatch[1]
+				const extractedTypes = typesStr
+					.split(/[,\s]+/)
+					.filter((type) =>
+						['line', 'bar', 'area', 'combo', 'pie', 'time-series', 'timeseries'].includes(type.toLowerCase())
+					)
+					.map((type) => type.toLowerCase().replace('time-series', 'line').replace('timeseries', 'line'))
+
+				if (extractedTypes.length > 0) {
+					info.types = extractedTypes
+					break
+				}
+			}
+		}
+
+		const countMatch = message.match(
+			/(?:generated?|creating?|building|will create)\s*(\d+)\s+(?:charts?|visualizations?)/i
+		)
+		if (countMatch) {
+			info.count = parseInt(countMatch[1], 10)
+		}
+
+		return info
+	}
 
 	const [prompt, setPrompt] = useState('')
 	const entitiesRef = useRef<{ entities: Set<string>; matchedEntities: Record<string, Set<string>> }>({
@@ -212,6 +268,11 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 			setProgressMessage('')
 			setProgressStage('')
 			setStreamingSuggestions(null)
+			setStreamingCharts(null)
+			setStreamingChartData(null)
+			setIsGeneratingCharts(false)
+			setIsAnalyzingForCharts(false)
+			setExpectedChartInfo(null)
 
 			streamingContentRef.current.reset()
 
@@ -226,6 +287,15 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 					} else if (data.type === 'progress') {
 						setProgressMessage(data.content)
 						setProgressStage(data.stage || '')
+
+						if (data.stage === 'chart_pre_analysis') {
+							setIsAnalyzingForCharts(true)
+							const chartInfo = parseChartInfo(data.content)
+							setExpectedChartInfo(chartInfo)
+						} else if (data.stage === 'chart_generation') {
+							setIsAnalyzingForCharts(false)
+							setIsGeneratingCharts(true)
+						}
 					} else if (data.type === 'session' && data.sessionId) {
 						setSessionId(data.sessionId)
 
@@ -234,6 +304,11 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 						}
 					} else if (data.type === 'suggestions') {
 						setStreamingSuggestions(data.suggestions)
+					} else if (data.type === 'charts') {
+						setStreamingCharts(data.charts)
+						setStreamingChartData(data.chartData)
+						setIsGeneratingCharts(false)
+						setIsAnalyzingForCharts(false)
 					}
 				},
 				abortSignal: abortControllerRef.current.signal
@@ -261,9 +336,10 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 					question: variables.userQuestion,
 					response: {
 						answer: data?.response?.answer || finalContent,
-						chartData: data?.response?.chartData,
 						metadata: data?.response?.metadata,
-						suggestions: data?.response?.suggestions
+						suggestions: data?.response?.suggestions,
+						charts: data?.response?.charts,
+						chartData: data?.response?.chartData
 					},
 					timestamp: Date.now()
 				}
@@ -326,6 +402,11 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 		setProgressMessage('')
 		setProgressStage('')
 		setStreamingSuggestions(null)
+		setStreamingCharts(null)
+		setStreamingChartData(null)
+		setIsGeneratingCharts(false)
+		setIsAnalyzingForCharts(false)
+		setExpectedChartInfo(null)
 		setConversationHistory([])
 
 		streamingContentRef.current.reset()
@@ -413,6 +494,10 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 												<ReactMarkdown remarkPlugins={[remarkGfm]}>{item.response.answer}</ReactMarkdown>
 											</div>
 
+											{item.response.charts && item.response.charts.length > 0 && (
+												<ChartRenderer charts={item.response.charts} chartData={item.response.chartData || []} />
+											)}
+
 											{item.response.suggestions && item.response.suggestions.length > 0 && (
 												<div className="space-y-3 mt-4">
 													<h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Suggested actions:</h4>
@@ -459,16 +544,6 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 												</details>
 											)}
 										</div>
-
-
-										{item.response.chartData && (
-											<details className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-												<summary className="text-sm font-medium cursor-pointer">Raw Chart Data</summary>
-												<pre className="text-xs mt-2 overflow-auto">
-													{JSON.stringify(item.response.chartData, null, 2)}
-												</pre>
-											</details>
-										)}
 									</div>
 								))}
 							</div>
@@ -485,7 +560,14 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 										<PromptResponse
 											response={
 												promptResponse?.response ||
-												(streamingSuggestions ? { answer: '', suggestions: streamingSuggestions } : undefined)
+												(streamingSuggestions || streamingCharts
+													? {
+															answer: '',
+															suggestions: streamingSuggestions,
+															charts: streamingCharts,
+															chartData: streamingChartData
+													  }
+													: undefined)
 											}
 											error={error?.message}
 											isPending={isPending}
@@ -494,6 +576,9 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 											progressMessage={progressMessage}
 											progressStage={progressStage}
 											onSuggestionClick={handleSuggestionClick}
+											isGeneratingCharts={isGeneratingCharts}
+											isAnalyzingForCharts={isAnalyzingForCharts}
+											expectedChartInfo={expectedChartInfo}
 										/>
 									</div>
 								</div>
@@ -757,9 +842,12 @@ const PromptResponse = ({
 	isStreaming,
 	progressMessage,
 	progressStage,
-	onSuggestionClick
+	onSuggestionClick,
+	isGeneratingCharts = false,
+	isAnalyzingForCharts = false,
+	expectedChartInfo
 }: {
-	response?: { answer: string; chartData?: any; metadata?: any; suggestions?: any[] }
+	response?: { answer: string; metadata?: any; suggestions?: any[]; charts?: any[]; chartData?: any[] }
 	error?: string
 	isPending: boolean
 	streamingResponse?: string
@@ -767,6 +855,9 @@ const PromptResponse = ({
 	progressMessage?: string
 	progressStage?: string
 	onSuggestionClick?: (suggestion: any) => void
+	isGeneratingCharts?: boolean
+	isAnalyzingForCharts?: boolean
+	expectedChartInfo?: { count?: number; types?: string[] } | null
 }) => {
 	if (error) {
 		return <p className="text-red-500">{error}</p>
@@ -781,24 +872,25 @@ const PromptResponse = ({
 					</div>
 				) : isStreaming && progressMessage ? (
 					<div className="flex items-center gap-2">
-						<div className="flex space-x-1">
-							<div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-							<div
-								className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-								style={{ animationDelay: '150ms' }}
-							></div>
-							<div
-								className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-								style={{ animationDelay: '300ms' }}
-							></div>
-						</div>
+						<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary1)]"></div>
 						<div>
 							{progressMessage}
-							{progressStage && <span className="text-gray-500 ml-2">({progressStage})</span>}
+							{progressStage && <span className="text-[var(--text3)] ml-2">({progressStage})</span>}
 						</div>
 					</div>
 				) : (
 					<Thinking />
+				)}
+
+				{(isAnalyzingForCharts || isGeneratingCharts) && (
+					<ChartRenderer
+						charts={[]}
+						chartData={[]}
+						isLoading={isAnalyzingForCharts || isGeneratingCharts}
+						isAnalyzing={isAnalyzingForCharts}
+						expectedChartCount={expectedChartInfo?.count}
+						chartTypes={expectedChartInfo?.types}
+					/>
 				)}
 			</div>
 		)
@@ -806,6 +898,17 @@ const PromptResponse = ({
 
 	return (
 		<div className="space-y-4">
+			{response?.charts && response.charts.length > 0 && (
+				<ChartRenderer
+					charts={response.charts}
+					chartData={response.chartData || []}
+					isLoading={false}
+					isAnalyzing={false}
+					expectedChartCount={expectedChartInfo?.count}
+					chartTypes={expectedChartInfo?.types}
+				/>
+			)}
+
 			{response?.suggestions && response.suggestions.length > 0 && (
 				<div className="space-y-3">
 					<h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Suggested actions:</h4>

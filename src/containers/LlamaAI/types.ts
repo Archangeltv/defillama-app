@@ -2,3 +2,47 @@ export interface ISearchData {
 	protocolsAndChains: { value: string; listValue: string; slug: string; tvl: number }[]
 	tokens: { value: string; listValue: string; slug: string; tvl: number }[]
 }
+
+// Chart-related types from backend
+export interface ChartConfiguration {
+	id: string
+	type: 'line' | 'area' | 'bar' | 'combo'
+	title: string
+	description: string
+	
+	axes: {
+		x: { 
+			field: string
+			label: string
+			type: 'time' | 'category'
+		}
+		yAxes: Array<{
+			id: string
+			fields: string[]
+			label: string
+			position: 'left' | 'right'
+			scale?: 'linear' | 'log'
+		}>
+	}
+	
+	series: Array<{
+		name: string
+		type: 'line' | 'area' | 'bar'
+		yAxisId: string
+		dataMapping: {
+			xField: string
+			yField: string
+			entityFilter?: { field: string; value: string }
+		}
+		styling: {
+			color?: string
+			opacity?: number
+		}
+	}>
+	
+	dataTransformation: {
+		groupBy?: string
+		timeField: string
+		metrics: string[]
+	}
+}
