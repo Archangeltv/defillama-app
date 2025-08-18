@@ -92,6 +92,7 @@ async function fetchPromptResponse({
 		let suggestions = null
 		let charts = null
 		let chartData = null
+		let lineBuffer = ''
 
 		while (true) {
 			if (abortSignal?.aborted) {
@@ -102,12 +103,22 @@ async function fetchPromptResponse({
 			if (done) break
 
 			const chunk = decoder.decode(value, { stream: true })
-			const lines = chunk.split('\n')
+
+			lineBuffer += chunk
+
+			const lines = lineBuffer.split('\n')
+
+			if (lines.length > 0 && !chunk.endsWith('\n')) {
+				lineBuffer = lines.pop() || ''
+			} else {
+				lineBuffer = ''
+			}
 
 			for (const line of lines) {
 				if (line.startsWith('data: ')) {
+					const jsonStr = line.slice(6)
 					try {
-						const data = JSON.parse(line.slice(6))
+						const data = JSON.parse(jsonStr)
 
 						if (data.type === 'token') {
 							fullResponse += data.content
@@ -140,7 +151,9 @@ async function fetchPromptResponse({
 						} else if (data.type === 'error') {
 							throw new Error(data.content)
 						}
-					} catch (e) {}
+					} catch (e) {
+						console.error('SSE JSON parse error:', e)
+					}
 				}
 			}
 		}
