@@ -32,6 +32,7 @@ export default function AreaChart({
 	hideDataZoom = false,
 	hideDownloadButton = false,
 	containerClassName,
+	connectNulls = false,
 	...props
 }: IChartProps) {
 	const id = useId()
@@ -66,6 +67,7 @@ export default function AreaChart({
 					shadowBlur: 10
 				},
 				symbol: 'none',
+				connectNulls,
 				itemStyle: {
 					color: chartColor
 				},
@@ -126,6 +128,7 @@ export default function AreaChart({
 						shadowBlur: 10
 					},
 					symbol: 'none',
+					connectNulls,
 					itemStyle: {
 						color: stackColor ? stackColor : index === 0 ? chartColor : null
 					},

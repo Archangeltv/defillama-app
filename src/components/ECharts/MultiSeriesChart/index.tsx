@@ -27,6 +27,7 @@ interface IMultiSeriesChartProps {
 	hideDownloadButton?: boolean
 	title?: string
 	showAggregateInTooltip?: boolean
+	connectNulls?: boolean
 }
 
 export default function MultiSeriesChart({
@@ -39,7 +40,8 @@ export default function MultiSeriesChart({
 	hideDataZoom = false,
 	hideDownloadButton = false,
 	alwaysShowTooltip,
-	showAggregateInTooltip = false
+	showAggregateInTooltip = false,
+	connectNulls = false
 }: IMultiSeriesChartProps) {
 	const id = useId()
 
@@ -63,6 +65,7 @@ export default function MultiSeriesChart({
 					name: serie.name,
 					type: serie.type,
 					symbol: serie.type === 'line' ? 'none' : undefined,
+					connectNulls: serie.type === 'line' ? connectNulls : undefined,
 					emphasis: {
 						focus: 'series',
 						shadowBlur: 10

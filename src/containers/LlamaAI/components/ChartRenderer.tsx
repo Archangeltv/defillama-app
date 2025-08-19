@@ -17,6 +17,7 @@ interface ChartRendererProps {
 	chartData: any[]
 	isLoading?: boolean
 	isAnalyzing?: boolean
+	hasError?: boolean
 	expectedChartCount?: number
 	chartTypes?: string[]
 }
@@ -65,21 +66,21 @@ const SingleChart = memo(function SingleChart({ config, data, isActive }: Single
 			case 'area':
 				return (
 					<Suspense fallback={<ChartLoadingSpinner />}>
-						<AreaChart chartData={adaptedChart.data} {...(adaptedChart.props as IChartProps)} />
+						<AreaChart chartData={adaptedChart.data} {...(adaptedChart.props as IChartProps)} connectNulls={true} />
 					</Suspense>
 				)
 
 			case 'combo':
 				return (
 					<Suspense fallback={<ChartLoadingSpinner />}>
-						<MultiSeriesChart {...(adaptedChart.props as any)} />
+						<MultiSeriesChart {...(adaptedChart.props as any)} connectNulls={true} />
 					</Suspense>
 				)
 
 			case 'multi-series':
 				return (
 					<Suspense fallback={<ChartLoadingSpinner />}>
-						<MultiSeriesChart {...(adaptedChart.props as any)} />
+						<MultiSeriesChart {...(adaptedChart.props as any)} connectNulls={true} />
 					</Suspense>
 				)
 
@@ -105,7 +106,7 @@ const SingleChart = memo(function SingleChart({ config, data, isActive }: Single
 
 const ChartLoadingSpinner = () => (
 	<div className="flex items-center justify-center h-full">
-		<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary1)]"></div>
+		<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
 	</div>
 )
 
@@ -116,23 +117,23 @@ const ChartAnalysisPlaceholder = ({
 	expectedChartCount?: number
 	chartTypes?: string[]
 }) => (
-	<div className="mt-4 border border-[var(--cards-border)] rounded-lg overflow-hidden bg-[var(--cards-bg)]">
-		<div className="flex items-center justify-between p-3 bg-[var(--bg2)] border-b border-[var(--cards-border)]">
+	<div className="mt-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+		<div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 			<div className="flex items-center gap-2">
-				<Icon name="search" height={16} width={16} className="text-[var(--primary1)] animate-pulse" />
-				<h4 className="text-sm font-medium text-[var(--text1)]">
+				<Icon name="search" height={16} width={16} className="text-blue-500 animate-pulse" />
+				<h4 className="text-sm font-medium text-gray-900 dark:text-white">
 					Analyzing data for chart opportunities...
 				</h4>
 			</div>
 		</div>
 
 		<div className="p-4">
-			<div className="h-32 bg-[var(--bg1)] rounded-lg flex items-center justify-center">
+			<div className="h-32 bg-gray-100 dark:bg-gray-900 rounded-lg flex items-center justify-center">
 				<div className="text-center">
 					<div className="flex justify-center mb-3">
 						<ChartLoadingSpinner />
 					</div>
-					<p className="text-sm text-[var(--text2)]">
+					<p className="text-sm text-gray-600 dark:text-gray-400">
 						Determining the best visualizations for your data...
 					</p>
 				</div>
@@ -148,23 +149,23 @@ const ChartLoadingPlaceholder = ({
 	expectedChartCount?: number
 	chartTypes?: string[]
 }) => (
-	<div className="mt-4 border border-[var(--cards-border)] rounded-lg overflow-hidden bg-[var(--cards-bg)]">
-		<div className="flex items-center justify-between p-3 bg-[var(--bg2)] border-b border-[var(--cards-border)]">
+	<div className="mt-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+		<div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 			<div className="flex items-center gap-2">
-				<Icon name="bar-chart" height={16} width={16} className="text-[var(--primary1)] animate-pulse" />
-				<h4 className="text-sm font-medium text-[var(--text1)]">
+				<Icon name="bar-chart" height={16} width={16} className="text-blue-500 animate-pulse" />
+				<h4 className="text-sm font-medium text-gray-900 dark:text-white">
 					{expectedChartCount > 1 ? `Generating ${expectedChartCount} Charts...` : 'Generating Chart...'}
 				</h4>
 			</div>
 		</div>
 
 		<div className="p-4">
-			<div className="h-64 bg-[var(--bg1)] rounded-lg flex items-center justify-center">
+			<div className="h-64 bg-gray-100 dark:bg-gray-900 rounded-lg flex items-center justify-center">
 				<div className="text-center">
 					<div className="flex justify-center mb-3">
 						<ChartLoadingSpinner />
 					</div>
-					<p className="text-sm text-[var(--text2)]">
+					<p className="text-sm text-gray-600 dark:text-gray-400">
 						{chartTypes?.length
 							? `Creating ${chartTypes.join(', ')} visualization${chartTypes.length > 1 ? 's' : ''}...`
 							: 'Creating visualization...'}
@@ -175,16 +176,37 @@ const ChartLoadingPlaceholder = ({
 	</div>
 )
 
+const ChartErrorPlaceholder = () => (
+	<div className="mt-4 border border-red-200 dark:border-red-800 rounded-lg overflow-hidden bg-red-50 dark:bg-red-900/10">
+		<div className="flex items-center gap-2 p-3 bg-red-100 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+			<Icon name="alert-triangle" height={16} width={16} className="text-red-600 dark:text-red-400" />
+			<h4 className="text-sm font-medium text-red-800 dark:text-red-200">
+				Chart Generation Failed
+			</h4>
+		</div>
+		<div className="p-4">
+			<p className="text-sm text-red-700 dark:text-red-300">
+				Chart generation encountered an issue
+			</p>
+		</div>
+	</div>
+)
+
 export const ChartRenderer = memo(function ChartRenderer({
 	charts,
 	chartData,
 	isLoading = false,
 	isAnalyzing = false,
+	hasError = false,
 	expectedChartCount,
 	chartTypes
 }: ChartRendererProps) {
 	const [activeTabIndex, setActiveTabIndex] = useState(0)
 	const [isCollapsed, setIsCollapsed] = useState(false)
+
+	if (hasError && (!charts || charts.length === 0)) {
+		return <ChartErrorPlaceholder />
+	}
 
 	if (isAnalyzing && (!charts || charts.length === 0)) {
 		return <ChartAnalysisPlaceholder expectedChartCount={expectedChartCount} chartTypes={chartTypes} />
@@ -194,7 +216,7 @@ export const ChartRenderer = memo(function ChartRenderer({
 		return <ChartLoadingPlaceholder expectedChartCount={expectedChartCount} chartTypes={chartTypes} />
 	}
 
-	if (!isLoading && !isAnalyzing && (!charts || charts.length === 0)) {
+	if (!isLoading && !isAnalyzing && !hasError && (!charts || charts.length === 0)) {
 		return null
 	}
 

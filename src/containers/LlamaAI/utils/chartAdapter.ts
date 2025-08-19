@@ -5,7 +5,7 @@ import { colorManager } from '~/containers/ProDashboard/utils/colorManager'
 
 interface AdaptedChartData {
 	chartType: 'area' | 'bar' | 'line' | 'combo' | 'multi-series'
-	data: [number, number][] | [any, number][]
+	data: [number, number | null][] | [any, number | null][]
 	props: Partial<IChartProps | IBarChartProps | IMultiSeriesChartProps>
 	title: string
 	description: string
@@ -37,7 +37,7 @@ const parseStringNumber = (value: any): number => {
 	return 0
 }
 
-const validateChartData = (data: [any, number][], chartType: string): [any, number][] => {
+const validateChartData = (data: [any, number | null][], chartType: string): [any, number | null][] => {
 	if (!data || data.length === 0) {
 		return []
 	}
@@ -45,7 +45,15 @@ const validateChartData = (data: [any, number][], chartType: string): [any, numb
 	const uniqueData = data.filter((item, index, self) => index === self.findIndex((t) => t[0] === item[0]))
 
 	const validData = uniqueData.filter(([x, y]) => {
-		return x !== null && x !== undefined && typeof y === 'number' && !isNaN(y) && y >= 0
+		if (x === null || x === undefined) {
+			return false
+		}
+
+		if (chartType === 'area' || chartType === 'line') {
+			return y === null || y === undefined || (typeof y === 'number' && !isNaN(y) && y >= 0)
+		}
+
+		return typeof y === 'number' && !isNaN(y) && y >= 0
 	})
 
 	return validData
@@ -94,15 +102,16 @@ export function adaptChartData(config: ChartConfiguration, rawData: any[]): Adap
 			throw new Error('No series configuration found')
 		}
 
-		let chartData: [number, number][] = []
+		let chartData: [number, number | null][] = []
 
 		if (config.axes.x.type === 'time') {
 			chartData = rawData.map((row) => {
 				const timestamp = row[primarySeries.dataMapping.xField]
-				const value = row[primarySeries.dataMapping.yField] || 0
+				const value = row[primarySeries.dataMapping.yField]
 
 				const unixTimestamp = convertToUnixTimestamp(timestamp)
-				return [unixTimestamp, parseStringNumber(value)]
+				// Preserve null/undefined values for connectNulls to work
+				return [unixTimestamp, value == null ? null : parseStringNumber(value)]
 			})
 
 			chartData.sort((a, b) => a[0] - b[0])
@@ -167,7 +176,7 @@ export function adaptMultiSeriesData(config: ChartConfiguration, rawData: any[])
 		}
 
 		const series: Array<{
-			data: Array<[number, number]>
+			data: Array<[number, number | null]>
 			type: 'line' | 'bar'
 			name: string
 			color: string
@@ -176,7 +185,7 @@ export function adaptMultiSeriesData(config: ChartConfiguration, rawData: any[])
 
 		for (let seriesIndex = 0; seriesIndex < config.series.length; seriesIndex++) {
 			const seriesConfig = config.series[seriesIndex]
-			let seriesData: [number, number][] = []
+			let seriesData: [number, number | null][] = []
 
 			let filteredData = rawData
 			let entityValue: string | undefined
@@ -189,9 +198,9 @@ export function adaptMultiSeriesData(config: ChartConfiguration, rawData: any[])
 			if (config.axes.x.type === 'time') {
 				seriesData = filteredData.map((row) => {
 					const timestamp = row[seriesConfig.dataMapping.xField]
-					const value = row[seriesConfig.dataMapping.yField] || 0
+					const value = row[seriesConfig.dataMapping.yField]
 					const unixTimestamp = convertToUnixTimestamp(timestamp)
-					return [unixTimestamp, parseStringNumber(value)]
+					return [unixTimestamp, value == null ? null : parseStringNumber(value)]
 				})
 
 				seriesData.sort((a, b) => a[0] - b[0])
@@ -210,7 +219,7 @@ export function adaptMultiSeriesData(config: ChartConfiguration, rawData: any[])
 			const chartType = seriesConfig.type === 'area' ? 'line' : (seriesConfig.type as 'line' | 'bar')
 
 			series.push({
-				data: validatedSeriesData as Array<[number, number]>,
+				data: validatedSeriesData as Array<[number, number | null]>,
 				type: chartType,
 				name: seriesConfig.name,
 				color,

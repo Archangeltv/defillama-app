@@ -37,6 +37,7 @@ export interface IChartProps {
 	hideDataZoom?: boolean
 	hideDownloadButton?: boolean
 	containerClassName?: string
+	connectNulls?: boolean
 }
 
 export interface IBarChartProps extends Omit<IChartProps, 'stacks' | 'expandTo100Percent'> {

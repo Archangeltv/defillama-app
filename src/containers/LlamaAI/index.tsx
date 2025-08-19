@@ -196,6 +196,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 	const [streamingChartData, setStreamingChartData] = useState<any[] | null>(null)
 	const [isGeneratingCharts, setIsGeneratingCharts] = useState(false)
 	const [isAnalyzingForCharts, setIsAnalyzingForCharts] = useState(false)
+	const [hasChartError, setHasChartError] = useState(false)
 	const [expectedChartInfo, setExpectedChartInfo] = useState<{ count?: number; types?: string[] } | null>(null)
 	const [sessionId, setSessionId] = useState<string | null>(() => {
 		const stored = typeof window !== 'undefined' ? localStorage.getItem(sessionStorageKey) : null
@@ -287,6 +288,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 			setStreamingChartData(null)
 			setIsGeneratingCharts(false)
 			setIsAnalyzingForCharts(false)
+			setHasChartError(false)
 			setExpectedChartInfo(null)
 
 			streamingContentRef.current.reset()
@@ -308,8 +310,14 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 							const chartInfo = parseChartInfo(data.content)
 							setExpectedChartInfo(chartInfo)
 						} else if (data.stage === 'chart_generation') {
-							setIsAnalyzingForCharts(false)
-							setIsGeneratingCharts(true)
+							if (data.content.includes('encountered an issue')) {
+								setIsAnalyzingForCharts(false)
+								setIsGeneratingCharts(false)
+								setHasChartError(true)
+							} else {
+								setIsAnalyzingForCharts(false)
+								setIsGeneratingCharts(true)
+							}
 						}
 					} else if (data.type === 'session' && data.sessionId) {
 						setSessionId(data.sessionId)
@@ -431,6 +439,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 		setStreamingChartData(null)
 		setIsGeneratingCharts(false)
 		setIsAnalyzingForCharts(false)
+		setHasChartError(false)
 		setExpectedChartInfo(null)
 		setConversationHistory([])
 
@@ -603,6 +612,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 											onSuggestionClick={handleSuggestionClick}
 											isGeneratingCharts={isGeneratingCharts}
 											isAnalyzingForCharts={isAnalyzingForCharts}
+											hasChartError={hasChartError}
 											expectedChartInfo={expectedChartInfo}
 										/>
 									</div>
@@ -870,6 +880,7 @@ const PromptResponse = ({
 	onSuggestionClick,
 	isGeneratingCharts = false,
 	isAnalyzingForCharts = false,
+	hasChartError = false,
 	expectedChartInfo
 }: {
 	response?: { answer: string; metadata?: any; suggestions?: any[]; charts?: any[]; chartData?: any[] }
@@ -882,6 +893,7 @@ const PromptResponse = ({
 	onSuggestionClick?: (suggestion: any) => void
 	isGeneratingCharts?: boolean
 	isAnalyzingForCharts?: boolean
+	hasChartError?: boolean
 	expectedChartInfo?: { count?: number; types?: string[] } | null
 }) => {
 	if (error) {
@@ -896,8 +908,16 @@ const PromptResponse = ({
 						<ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingResponse}</ReactMarkdown>
 					</div>
 				) : isStreaming && progressMessage ? (
-					<div className="flex items-center gap-2">
-						<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary1)]"></div>
+					<div
+						className={`flex items-center gap-2 ${
+							progressMessage.includes('encountered an issue') ? 'text-red-600 dark:text-red-400' : ''
+						}`}
+					>
+						{progressMessage.includes('encountered an issue') ? (
+							<Icon name="alert-triangle" height={16} width={16} className="text-red-600 dark:text-red-400" />
+						) : (
+							<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+						)}
 						<div>
 							{progressMessage}
 							{progressStage && <span className="text-[var(--text3)] ml-2">({progressStage})</span>}
@@ -907,12 +927,13 @@ const PromptResponse = ({
 					<Thinking />
 				)}
 
-				{(isAnalyzingForCharts || isGeneratingCharts) && (
+				{(isAnalyzingForCharts || isGeneratingCharts || hasChartError) && (
 					<ChartRenderer
 						charts={[]}
 						chartData={[]}
 						isLoading={isAnalyzingForCharts || isGeneratingCharts}
 						isAnalyzing={isAnalyzingForCharts}
+						hasError={hasChartError}
 						expectedChartCount={expectedChartInfo?.count}
 						chartTypes={expectedChartInfo?.types}
 					/>
