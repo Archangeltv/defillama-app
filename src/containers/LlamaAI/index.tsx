@@ -11,8 +11,7 @@ import { ISearchData } from './types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ChartRenderer } from './components/ChartRenderer'
-
-const MCP_HOST = 'https://mcp.llama.team'
+import { MCP_SERVER } from '~/constants'
 
 class StreamingContent {
 	private content: string = ''
@@ -68,7 +67,7 @@ async function fetchPromptResponse({
 			requestBody.createNewSession = true
 		}
 
-		const response = await fetch(`${MCP_HOST}/chatbot-agent`, {
+		const response = await fetch(`${MCP_SERVER}/chatbot-agent`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -416,7 +415,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 	const handleNewChat = async () => {
 		if (sessionId) {
 			try {
-				await fetch(`${MCP_HOST}/chatbot-agent/session/${sessionId}`, {
+				await fetch(`${MCP_SERVER}/chatbot-agent/session/${sessionId}`, {
 					method: 'DELETE'
 				})
 			} catch (error) {

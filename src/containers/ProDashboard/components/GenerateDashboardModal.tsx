@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Icon } from '~/components/Icon'
 import toast from 'react-hot-toast'
 import { DashboardItemConfig } from '../types'
+import { MCP_SERVER } from '~/constants'
 
 interface GenerateDashboardModalProps {
 	isOpen: boolean
@@ -68,7 +69,7 @@ export function GenerateDashboardModal({
 							dashboardName: dashboardName.trim()
 					  }
 
-			const response = await fetch('https://mcp.llama.team/dashboard-creator', {
+			const response = await fetch(`${MCP_SERVER}/dashboard-creator`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'

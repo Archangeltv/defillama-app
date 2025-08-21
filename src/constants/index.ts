@@ -196,3 +196,5 @@ export const REV_PROTOCOLS = {
 	polygon: ['fastlane'],
 	bsc: ['bloxroute']
 }
+
+export const MCP_SERVER = process.env.MCP_SERVER_URL ?? 'https://mcp.llama.team'
