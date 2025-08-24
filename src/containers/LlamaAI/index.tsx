@@ -44,7 +44,7 @@ async function fetchPromptResponse({
 	userQuestion: string
 	matchedEntities?: Record<string, string[]>
 	onProgress?: (data: {
-		type: 'token' | 'progress' | 'session' | 'suggestions' | 'charts'
+		type: 'token' | 'progress' | 'session' | 'suggestions' | 'charts' | 'error'
 		content: string
 		stage?: string
 		sessionId?: string
@@ -157,7 +157,9 @@ async function fetchPromptResponse({
 								})
 							}
 						} else if (data.type === 'error') {
-							throw new Error(data.content)
+							if (onProgress && !abortSignal?.aborted) {
+								onProgress({ type: 'error', content: data.content })
+							}
 						}
 					} catch (e) {
 						console.error('SSE JSON parse error:', e)
@@ -196,6 +198,7 @@ const sessionStorageKey = 'llama-ai-session'
 
 export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 	const [streamingResponse, setStreamingResponse] = useState('')
+	const [streamingError, setStreamingError] = useState('')
 	const [isStreaming, setIsStreaming] = useState(false)
 	const [progressMessage, setProgressMessage] = useState('')
 	const [progressStage, setProgressStage] = useState('')
@@ -295,6 +298,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 
 			setIsStreaming(true)
 			setStreamingResponse('')
+			setStreamingError('')
 			setProgressMessage('')
 			setProgressStage('')
 			setStreamingSuggestions(null)
@@ -348,6 +352,8 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 						setStreamingChartData(data.chartData)
 						setIsGeneratingCharts(false)
 						setIsAnalyzingForCharts(false)
+					} else if (data.type === 'error') {
+						setStreamingError(data.content)
 					}
 				},
 				abortSignal: abortControllerRef.current.signal
@@ -476,6 +482,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 		setPrompt('')
 		resetPrompt()
 		setStreamingResponse('')
+		setStreamingError('')
 		setProgressMessage('')
 		setProgressStage('')
 		setStreamingSuggestions(null)
@@ -623,6 +630,7 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 													: undefined)
 											}
 											error={error?.message}
+											streamingError={streamingError}
 											isPending={isPending}
 											streamingResponse={streamingResponse}
 											isStreaming={isStreaming}
@@ -922,6 +930,7 @@ const Thinking = () => {
 const PromptResponse = ({
 	response,
 	error,
+	streamingError,
 	isPending,
 	streamingResponse,
 	isStreaming,
@@ -935,6 +944,7 @@ const PromptResponse = ({
 }: {
 	response?: { answer: string; metadata?: any; suggestions?: any[]; charts?: any[]; chartData?: any[] }
 	error?: string
+	streamingError?: string
 	isPending: boolean
 	streamingResponse?: string
 	isStreaming?: boolean
@@ -953,7 +963,11 @@ const PromptResponse = ({
 	if (isPending || isStreaming) {
 		return (
 			<div className="space-y-4">
-				{isStreaming && streamingResponse ? (
+				{streamingError ? (
+					<div className="text-red-500">
+						{streamingError}
+					</div>
+				) : isStreaming && streamingResponse ? (
 					<div className="prose prose-sm max-w-none dark:prose-invert prose-table:table-auto prose-table:border-collapse prose-th:border prose-th:border-gray-300 dark:prose-th:border-gray-600 prose-th:px-3 prose-th:py-2 prose-th:bg-gray-100 dark:prose-th:bg-gray-800 prose-td:border prose-td:border-gray-300 dark:prose-td:border-gray-600 prose-td:px-3 prose-td:py-2">
 						<ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingResponse}</ReactMarkdown>
 					</div>
