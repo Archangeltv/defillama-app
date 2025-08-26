@@ -227,6 +227,37 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 	const abortControllerRef = useRef<AbortController | null>(null)
 	const streamingContentRef = useRef<StreamingContent>(new StreamingContent())
 
+	const handleStopRequest = async () => {
+		if (!sessionId || !isStreaming) return
+
+		try {
+			// Call the backend stop endpoint
+			const response = await fetch(`${MCP_SERVER}/chatbot-agent/stop`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					sessionId: sessionId
+				})
+			})
+
+			if (response.ok) {
+				console.log('Successfully stopped streaming session')
+			} else {
+				const errorData = await response.json()
+				console.error('Failed to stop streaming session:', errorData)
+			}
+		} catch (error) {
+			console.error('Error stopping streaming session:', error)
+		}
+
+		// Also abort the local controller as backup
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort()
+		}
+	}
+
 	const parseChartInfo = (message: string): { count?: number; types?: string[] } => {
 		const info: { count?: number; types?: string[] } = {}
 
@@ -687,6 +718,8 @@ export function LlamaAI({ searchData }: { searchData: ISearchData }) {
 							isPending={isPending}
 							searchData={searchData}
 							entitiesRef={entitiesRef}
+							handleStopRequest={handleStopRequest}
+							isStreaming={isStreaming}
 						/>
 					</div>
 					{conversationHistory.length === 0 && !isSubmitted ? (
@@ -718,12 +751,16 @@ const PromptInput = ({
 	handleSubmit,
 	isPending,
 	searchData,
-	entitiesRef
+	entitiesRef,
+	handleStopRequest,
+	isStreaming
 }: {
 	handleSubmit: (prompt: string) => void
 	isPending: boolean
 	searchData: ISearchData
 	entitiesRef: React.MutableRefObject<{ entities: Set<string>; matchedEntities: Record<string, Set<string>> }>
+	handleStopRequest?: () => void
+	isStreaming?: boolean
 }) => {
 	const ref = useRef<HTMLTextAreaElement>(null)
 	const highlightRef = useRef<HTMLDivElement>(null)
@@ -899,13 +936,25 @@ const PromptInput = ({
 						</Ariakit.ComboboxItem>
 					))}
 				</Ariakit.ComboboxPopover>
-				<button
-					className="flex items-center justify-center rounded-md gap-2 h-6 w-6 bg-[rgba(31,103,210,0.12)] border border-[var(--old-blue)] text-[var(--old-blue)] absolute bottom-3 right-2"
-					disabled={isPending}
-				>
-					<Icon name="arrow-up" height={16} width={16} />
-					<span className="sr-only">Submit prompt</span>
-				</button>
+				{isStreaming ? (
+					<button
+						type="button"
+						onClick={handleStopRequest}
+						className="flex items-center justify-center rounded-md gap-2 h-6 w-6 bg-red-100 dark:bg-red-900/20 border border-red-500 text-red-600 dark:text-red-400 absolute bottom-3 right-2 hover:bg-red-200 dark:hover:bg-red-900/30"
+					>
+						<Icon name="x" height={14} width={14} />
+						<span className="sr-only">Stop streaming</span>
+					</button>
+				) : (
+					<button
+						type="submit"
+						className="flex items-center justify-center rounded-md gap-2 h-6 w-6 bg-[rgba(31,103,210,0.12)] border border-[var(--old-blue)] text-[var(--old-blue)] absolute bottom-3 right-2 disabled:opacity-50"
+						disabled={isPending || !value.trim()}
+					>
+						<Icon name="arrow-up" height={16} width={16} />
+						<span className="sr-only">Submit prompt</span>
+					</button>
+				)}
 			</form>
 		</>
 	)
